@@ -137,7 +137,7 @@ async function storyRows(where, args, uid, { sort = "top", limit = 40, offset = 
 }
 function shapeStory(r, links) {
   return {
-    id: r.id, title: r.title, url: r.url, summary: r.summary, authors: r.authors, published_date: r.published_at, first_seen: r.first_seen,
+    id: r.id, title: r.title, url: r.url, summary: r.summary, authors: r.authors, published_at: r.published_at, first_seen: r.first_seen,
     topics: JSON.parse(r.topics || "[]"), orgs: JSON.parse(r.orgs || "[]"), votes: r.votes, voted: bool(r.voted), saved: bool(r.saved), notes: r.nnotes,
     sources: links.map((l) => ({ name: l.source || "Uncatalogued source", kind: l.kind || "submitted", url: l.url, title: l.title,
       ...(profile.has("rigor-badges") && l.rigor ? { rigor: (() => { try { return JSON.parse(l.rigor); } catch { return undefined; } })() } : {}) })),
