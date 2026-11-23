@@ -27,7 +27,37 @@
       "REQ-020"
     ],
     "upstream_main_commit": "3d24937ca17e742aeb69bbc9ec10a4a4687f663f",
-    "matches_fetched_origin_main": true
+    "matches_fetched_origin_main": false,
+    "superseded_by": {
+      "version": "1.4",
+      "sha256": "897fdcf9b07e71ee77370269cbf4ecdefbc81dd65a24560fecfda0e07b73199d",
+      "requirement_ids": [
+        "REQ-001",
+        "REQ-002",
+        "REQ-003",
+        "REQ-004",
+        "REQ-005",
+        "REQ-006",
+        "REQ-007",
+        "REQ-008",
+        "REQ-009",
+        "REQ-010",
+        "REQ-011",
+        "REQ-012",
+        "REQ-013",
+        "REQ-014",
+        "REQ-015",
+        "REQ-016",
+        "REQ-017",
+        "REQ-018",
+        "REQ-019",
+        "REQ-020",
+        "REQ-021",
+        "REQ-022",
+        "REQ-023"
+      ],
+      "note": "Spec 1.4 added REQ-021..REQ-023 after this audit; the findings above refer to the 20-REQ version pinned in sha256."
+    }
   },
   "scope_policy": {
     "status": "unresolved_interpretation",

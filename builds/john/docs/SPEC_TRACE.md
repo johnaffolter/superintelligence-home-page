@@ -19,6 +19,9 @@ How this build meets the shared spec ([specs/001-superintelligence-homepage/spec
 | REQ-018 | Laptop and phone, no sideways scroll | `public/css/app.css` | e2e: "Phone width" and "Reader robustness": 320, 390, 768 and 1280px, both themes, mobile menu and filter disclosure; "Reading quality" checks 676×504 content visibility, evidence reflow and reduced motion; "Research wave 1" checks direct guest navigation at 320/390px |
 | REQ-019 | Live 2+ weeks before the presentation | `docs/DEPLOY.md` (humans deploy) | not automated |
 | REQ-020 | Human-written agent log in the repo | `AGENT_LOG.md` (the partners write it; agents never do). The app has no agent log page: `/agent-log` redirects to the file; old in-app entries can be exported once from `/api/admin/agent-log.md` | e2e: "Agent log" section; preflight smoke "no in-app agent log" |
+| REQ-021 | Fetched text shown as plain text | `public/js/api.js` `esc()` escapes every feed field before it reaches the page; only source links are rendered as links | not automated (code review; bakeoff/probe.js records it) |
+| REQ-022 | Not-investment-advice notice on every page | `public/js/api.js` sets the reader notice "For information only, not investment advice." on every page | not automated (visible in bakeoff screenshots) |
+| REQ-023 | Every action works by keyboard | Skip link (`public/welcome.html`), `:focus-visible` outlines (`public/css/app.css`), native buttons and links | e2e: sort help closes with Escape; dossier sections expand by keyboard |
 
 
 ### Shared spec 1.1 proposal (PR #3)
