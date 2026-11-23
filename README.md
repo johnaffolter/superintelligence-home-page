@@ -15,9 +15,11 @@ The plan we build against (working agreement, spec, versioned contract) is in ou
 ## The two builds
 
 | Build | Who | Folder | Live site |
-|-------|-----|--------|-----------|
-| Build A | Matt (Claude Code) | [`builds/matt/`](builds/matt/) | https://superintelligence-home-page.vercel.app |
-| Build B | John (v0) | `builds/john/` | _not deployed yet_ |
+| --- | --- | --- | --- |
+| Build A | Matt (Claude Code) | [builds/matt/](builds/matt/) | https://superintelligence-home-page.vercel.app |
+| Build B | John (v0) | [builds/john/](builds/john/) | https://si-homepage-build-b.vercel.app |
+
+Build B's stack, deploy settings and status are in [builds/john/README.md](builds/john/README.md#build-information).
 
 ## What it does
 

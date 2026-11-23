@@ -83,3 +83,36 @@ CREATE TABLE IF NOT EXISTS saves (
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, story_id)
 );
+
+-- 2026-11-21: Google News search feeds and the AI significance judge (Build A plan, research §14–15).
+-- Written as ALTERs so they also apply to databases created before this change.
+
+-- A new source kind for news searches.
+ALTER TABLE sources DROP CONSTRAINT IF EXISTS sources_kind_check;
+ALTER TABLE sources ADD CONSTRAINT sources_kind_check
+  CHECK (kind IN ('papers', 'frontier-lab', 'safety-group', 'research-org', 'forum', 'newsletter', 'news'));
+
+-- The outlet that published an item found through a news search (e.g. "IEEE Spectrum").
+ALTER TABLE story_sources ADD COLUMN IF NOT EXISTS outlet text;
+
+-- AI significance judgment: score 1–10 and Claude's one-line reason. NULL score = not judged yet.
+ALTER TABLE stories ADD COLUMN IF NOT EXISTS ai_score smallint CHECK (ai_score BETWEEN 0 AND 10);
+ALTER TABLE stories ADD COLUMN IF NOT EXISTS ai_reason text;
+ALTER TABLE stories ADD COLUMN IF NOT EXISTS ai_model text;
+ALTER TABLE stories ADD COLUMN IF NOT EXISTS judged_at timestamptz;
+CREATE INDEX IF NOT EXISTS stories_unjudged ON stories (published_at DESC) WHERE judged_at IS NULL;
+
+-- 2026-11-21: decimal scores (one decimal place, e.g. 8.2) for finer ranking within a day.
+ALTER TABLE stories DROP CONSTRAINT IF EXISTS stories_ai_score_check;
+ALTER TABLE stories ALTER COLUMN ai_score TYPE numeric(3,1);
+ALTER TABLE stories ADD CONSTRAINT stories_ai_score_check CHECK (ai_score BETWEEN 0 AND 10);
+
+-- 2026-11-22: history fill progress (Build A research §16). One row per history task.
+CREATE TABLE IF NOT EXISTS history_progress (
+  task_id    text PRIMARY KEY,
+  cursor     text,
+  done       boolean NOT NULL DEFAULT false,
+  items      integer NOT NULL DEFAULT 0,
+  last_error text,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);

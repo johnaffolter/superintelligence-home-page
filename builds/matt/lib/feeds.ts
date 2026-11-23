@@ -7,6 +7,9 @@ export type FeedItem = {
   link: string;
   summary: string;
   published: Date | null;
+  // For news searches (Google News): the publication and its web address, e.g. "IEEE Spectrum".
+  outlet?: string;
+  outletUrl?: string;
 };
 
 const TIMEOUT_MS = 10_000;
@@ -55,7 +58,7 @@ function atomLink(entry: Raw): string {
   return typeof chosen === "string" ? chosen : text(chosen["@_href"]);
 }
 
-export function parseFeed(xml: string): FeedItem[] {
+export function parseFeed(xml: string, maxItems: number = MAX_ITEMS_PER_SOURCE): FeedItem[] {
   const doc = parser.parse(xml) as Raw;
 
   const rss = doc.rss as Raw | undefined;
@@ -66,12 +69,23 @@ export function parseFeed(xml: string): FeedItem[] {
   if (rss || rdf) {
     const channel = (rss?.channel ?? {}) as Raw;
     const rawItems = asArray((rss ? channel.item : rdf?.item) as Raw | Raw[]);
-    items = rawItems.map((i) => ({
-      title: text(i.title),
-      link: text(i.link) || text(i.guid),
-      summary: text(i.description) || text(i["content:encoded"]),
-      published: date(i.pubDate) ?? date(i["dc:date"]),
-    }));
+    items = rawItems.map((i) => {
+      const source = i.source as Raw | string | undefined;
+      const outlet = text(source).trim() || undefined;
+      const outletUrl = typeof source === "object" && source ? text(source["@_url"]) || undefined : undefined;
+      let title = text(i.title);
+      // News searches append " - Outlet" to every headline; drop it so the same article groups
+      // across searches and reads cleanly.
+      if (outlet && title.endsWith(` - ${outlet}`)) title = title.slice(0, -(outlet.length + 3));
+      return {
+        title,
+        link: text(i.link) || text(i.guid),
+        summary: text(i.description) || text(i["content:encoded"]),
+        published: date(i.pubDate) ?? date(i["dc:date"]),
+        outlet,
+        outletUrl,
+      };
+    });
   } else if (atom) {
     items = asArray(atom.entry as Raw | Raw[]).map((e) => ({
       title: text(e.title),
@@ -86,15 +100,16 @@ export function parseFeed(xml: string): FeedItem[] {
   return items
     .filter((i) => i.title && i.link)
     .sort((a, b) => (b.published?.getTime() ?? 0) - (a.published?.getTime() ?? 0))
-    .slice(0, MAX_ITEMS_PER_SOURCE);
+    .slice(0, maxItems);
 }
 
-export async function fetchFeed(url: string): Promise<FeedItem[]> {
+export async function fetchText(url: string, init?: RequestInit): Promise<string> {
   let res: Response;
   try {
     res = await fetch(url, {
+      ...init,
       signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { "User-Agent": "SuperintelligenceHomepage/1.0 (class project feed reader)" },
+      headers: { "User-Agent": "SuperintelligenceHomepage/1.0 (class project feed reader)", ...(init?.headers ?? {}) },
       cache: "no-store",
     });
   } catch (err) {
@@ -104,5 +119,9 @@ export async function fetchFeed(url: string): Promise<FeedItem[]> {
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`);
   }
-  return parseFeed(await res.text());
+  return res.text();
+}
+
+export async function fetchFeed(url: string, maxItems?: number): Promise<FeedItem[]> {
+  return parseFeed(await fetchText(url), maxItems);
 }
