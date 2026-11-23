@@ -34,7 +34,7 @@ async function apiCall(path, opts) {
   });
   let data = {}; try { data = await res.json(); } catch (e) {}
   if (res.status === 401 && !opts.allow401) { location.href = "/?next=" + encodeURIComponent(location.pathname + location.search + location.hash); throw new Error("Please sign in."); }
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status}).`);
+  if (!res.ok) throw Object.assign(new Error(data.error || `Request failed (${res.status}).`), { status: res.status });
   if (path === "/api/me") window.SI_PUBLIC_NAV = data.publicNav || [];
   return data;
 }
@@ -88,6 +88,15 @@ function workspaceNavigation(user, current) {
   search.oninput=()=>{let count=0;for(const li of context.querySelectorAll(".directory-body li")){li.hidden=!li.textContent.toLowerCase().includes(search.value.trim().toLowerCase());if(!li.hidden)count++;}for(const section of context.querySelectorAll("section"))section.hidden=![...section.querySelectorAll("li")].some(x=>!x.hidden);context.querySelector(".directory-count").textContent=`${count} pages match.`;};
   directory.addEventListener("keydown", e=>{if(e.key==="Escape"){directory.open=false;directory.querySelector("summary").focus();}});
 }
+const THEMES = ["auto", "light", "dark"], THEME_LABEL = { auto: "Auto", light: "Light", dark: "Dark" };
+function readTheme() { try { const t = localStorage.getItem("si-theme"); return THEMES.includes(t) ? t : "auto"; } catch { return "auto"; } }
+function applyTheme(t) { if (t === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = t; }
+if (typeof document !== "undefined") applyTheme(readTheme());
+function wireThemeToggle(btn) {
+  const render = (t) => { const next = THEMES[(THEMES.indexOf(t) + 1) % THEMES.length]; btn.textContent = THEME_LABEL[t]; btn.setAttribute("aria-label", `Theme: ${THEME_LABEL[t]}. Switch to ${THEME_LABEL[next]}`); btn.title = `Theme: ${THEME_LABEL[t]} (click for ${THEME_LABEL[next]})`; };
+  render(readTheme());
+  btn.onclick = () => { const next = THEMES[(THEMES.indexOf(readTheme()) + 1) % THEMES.length]; try { localStorage.setItem("si-theme", next); } catch {} applyTheme(next); render(next); };
+}
 function setPageContext(label) { const el = document.querySelector("#pageContextLabel"); if (el) el.textContent = label; }
 function topbar(user) {
   const here = location.pathname.replace(/\.html$/, "").replace(/\/index$/, "/") || "/";
@@ -105,8 +114,8 @@ function topbar(user) {
   const researchLinks = research.length ? `<div class="nav-tools"><p class="small muted">Research</p>${research.map((n) => `<a href="${esc(n.href)}"${isHere(n.href) ? ' aria-current="page"' : ""}>${esc(n.label)}</a>`).join("")}</div>` : "";
   const toolLinks = tools.length ? `<div class="nav-tools"><p class="small muted">Administration</p>${tools.map((n) => `<a href="${esc(n.href)}"${isHere(n.href) ? ' aria-current="page"' : ""}>${esc(n.label)}</a>`).join("")}</div>` : "";
   bar.innerHTML = `<a class="skip-link" href="#mainContent">Skip to content</a><div class="in"><a class="brand" href="/" aria-label="Superintelligence Homepage"><span class="brand-long">Superintelligence Homepage</span><span class="brand-short">SI Homepage</span></a><button class="btn nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="siteNav">Menu</button><nav class="nav" id="siteNav" aria-label="Main navigation">${links.map(([h, t]) => `<a href="${esc(h)}"${isHere(h) ? ' aria-current="page"' : ""}>${esc(t)}</a>`).join("")}${researchMenu}${researchLinks}${toolLinks}</nav>
-    <div class="who">${menu}${user ? `<span>${esc(user.name)}</span><button class="btn" id="logout" type="button">Sign out</button>` : `<a class="btn" href="/?signin=1">Sign in</a>`}</div></div>`;
-  document.querySelector(".topbar")?.remove(); document.body.prepend(bar);
+    <div class="who">${menu}<button class="btn theme-toggle" id="themeToggle" type="button">Auto</button>${user ? `<span>${esc(user.name)}</span><button class="btn" id="logout" type="button">Sign out</button>` : `<a class="btn" href="/?signin=1">Sign in</a>`}</div></div>`;
+  document.querySelector(".topbar")?.remove(); document.body.prepend(bar); wireThemeToggle(bar.querySelector("#themeToggle"));
   const main = document.querySelector("main") || document.querySelector("#app"); if (main) { if (!main.id) main.id = "mainContent"; bar.querySelector(".skip-link").href = `#${main.id}`; main.setAttribute("tabindex", "-1"); }
   const toggle = bar.querySelector("#navToggle"), setOpen = (open) => { bar.toggleAttribute("data-nav-open", open); toggle.setAttribute("aria-expanded", String(open)); };
   toggle.onclick = () => { const open = toggle.getAttribute("aria-expanded") !== "true"; setOpen(open); const more = bar.querySelector(".nav-more"); if (more) more.open = open; };
@@ -169,9 +178,24 @@ function scoreBlock(c, opts = {}) {
     ${c.salt.length ? `<p class="salt small"><b>Grain of salt:</b> ${c.salt.map(esc).join(" ")}</p>` : ""}
   </div>`;
 }
+// Public judging trail from the assessment layer (lib/assess.js): rule checks first, models only when rules are unsure.
+const VERDICT = { relevant: "On topic", irrelevant: "Off topic", reject: "Rejected", unsure: "Undecided" };
+const TIER = ["Rule checks", "Fast model", "Larger model"];
+const pct = (c) => c == null ? "" : `${Math.round(Number(c) * 100)}% confident`;
+function judgingBlock(j) {
+  if (!j) return `<div class="judging"><h4>How it was judged</h4><p class="small muted">Not assessed yet. The assessment layer runs in batches and this story is waiting its turn. Until then it is shown because its source and topic terms put it in scope.</p></div>`;
+  const step = (t) => `<li><b>${esc(TIER[t.tier] || `Tier ${t.tier}`)}</b>${t.model ? ` <code>${esc(t.model)}</code>` : ""}: ${t.skipped ? `skipped (${esc(t.skipped)})` : `${esc(VERDICT[t.verdict] || t.verdict || "no answer")}${t.confidence != null ? `, ${pct(t.confidence)}` : ""}${t.disagrees ? ". Disagreed with the rule checks, so it escalated" : ""}`}</li>`;
+  const checks = (j.checks || []).map((c) => `<li class="check ${c.pass ? "pass" : "fail"}"><span class="mark">${c.pass ? "Pass" : "Fail"}</span><b>${esc(String(c.id).replace(/_/g, " "))}</b><span class="muted">${esc(c.detail)}</span></li>`).join("");
+  return `<div class="judging"><h4>How it was judged</h4>
+    <p class="judge-verdict" data-verdict="${esc(j.verdict)}"><b>${esc(VERDICT[j.verdict] || j.verdict)}</b> · decided by ${esc(TIER[j.tier] || `tier ${j.tier}`)}${j.model ? ` (<code>${esc(j.model)}</code>)` : ""}${j.confidence != null ? ` · ${pct(j.confidence)}` : ""}</p>
+    ${j.reason ? `<p class="judge-reason small"><span class="muted">Reasoning:</span> “${esc(j.reason)}”</p>` : ""}
+    ${j.trail?.length ? `<ol class="judge-trail small" aria-label="Judging steps">${j.trail.map(step).join("")}</ol>` : ""}
+    ${checks ? `<ul class="checks">${checks}</ul>` : ""}
+    <p class="small muted">Rules ${esc(j.rules_version || "?")}${j.judged_at ? ` · judged ${esc(ago(j.judged_at))}` : ""}. Models answer only inside the topic ontology; raw replies are archived for audit.</p></div>`;
+}
 function evidenceBreakdown(s) {
   const factors = s.analysis?.why || [];
-  return scoreBlock(s.card) + `<p class="small muted">Rule-based significance: a reading aid, not confidence or scientific validity.</p>${factors.length ? `<ul class="evidence-factors">${factors.map((f) => `<li><span>${esc(f.factor)} <b>+${esc(f.points)}</b></span><meter min="0" max="100" value="${Math.max(0, Math.min(100, Number(f.points) || 0))}" aria-label="${esc(f.factor)}: ${esc(f.points)} points out of 100">${esc(f.points)} points</meter><small class="muted">${esc(f.detail || "")}</small></li>`).join("")}</ul>` : '<p class="small">No factor breakdown is available for this story.</p>'}`;
+  return judgingBlock(s.judging) + scoreBlock(s.card) + `<p class="small muted">Rule-based significance: a reading aid, not confidence or scientific validity.</p>${factors.length ? `<ul class="evidence-factors">${factors.map((f) => `<li><span>${esc(f.factor)} <b>+${esc(f.points)}</b></span><meter min="0" max="100" value="${Math.max(0, Math.min(100, Number(f.points) || 0))}" aria-label="${esc(f.factor)}: ${esc(f.points)} points out of 100">${esc(f.points)} points</meter><small class="muted">${esc(f.detail || "")}</small></li>`).join("")}</ul>` : '<p class="small">No factor breakdown is available for this story.</p>'}`;
 }
 const paperLabel = (key) => key.startsWith("arxiv:") ? `arXiv ${key.slice(6)}` : `DOI ${key.slice(4, 30)}${key.length > 30 ? "…" : ""}`;
 // Original papers a blog or newsletter post cites. One already in the feed opens its story; others open the paper.
@@ -197,8 +221,8 @@ function storyCard(s, opts = {}) {
   const bench = (an.benchmarks || []).slice(0, 3).map((b) => `<a class="tag bench" href="/?benchmark=${esc(b.id)}" title="Benchmark${b.score ? `: reported ${esc(b.score.raw)}` : ""}">${esc(b.label)}${b.score ? ` <b>${esc(fmtScore(b.score))}</b>` : ""}</a>`).join("");
   li.innerHTML = `<button class="vote ${s.voted ? "on" : ""}" type="button" aria-pressed="${s.voted}" aria-label="Upvote"><span aria-hidden="true">▲</span><b>${s.votes}</b></button>
     <div class="body"><a class="title" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a>
-    <div class="meta">${sigBadge}${rigorBadge}${an.type ? `<span class="utype">${esc(an.type.label)}</span>` : ""}<span>${esc(s.sources[0]?.name || "")}${s.nsources > 1 ? ` <span class="multi">+ ${s.nsources - 1} more source${s.nsources > 2 ? "s" : ""}</span>` : ""}</span><span>${kinds.map(esc).join(" · ")}</span>${storyDate(s)}</div>
-    <section class="evidence-panel" id="${evidenceId}" aria-label="Significance explanation" hidden></section>
+    <div class="meta">${sigBadge}${rigorBadge}${s.judging ? `<span class="judged" data-verdict="${esc(s.judging.verdict)}" title="Assessment: ${esc(VERDICT[s.judging.verdict] || s.judging.verdict)} by ${esc(TIER[s.judging.tier] || "tier " + s.judging.tier)}${s.judging.reason ? ". " + esc(s.judging.reason) : ""}. Select the score to see the full trail.">${esc(VERDICT[s.judging.verdict] || s.judging.verdict)} · ${s.judging.tier ? "model" : "rules"}</span>` : ""}${an.type ? `<span class="utype">${esc(an.type.label)}</span>` : ""}<span>${esc(s.sources[0]?.name || "")}${s.nsources > 1 ? ` <span class="multi">+ ${s.nsources - 1} more source${s.nsources > 2 ? "s" : ""}</span>` : ""}</span><span>${kinds.map(esc).join(" · ")}</span>${storyDate(s)}</div>
+    <section class="evidence-panel" id="${evidenceId}" aria-label="Judging and significance explanation" hidden></section>
     ${s.summary && !opts.compact ? `<p class="sum">${esc(s.summary.slice(0, 260))}${s.summary.length > 260 ? "…" : ""}</p>` : ""}
     ${papersRow(s)}
     ${opts.listNote ? `<p class="listnote">“${esc(opts.listNote)}”</p>` : ""}
