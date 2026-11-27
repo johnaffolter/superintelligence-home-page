@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSessionForUser, verifyCredentials } from "@/lib/auth";
+import { checkAuthRateLimit } from "@/lib/usage";
 import {
-  checkRateLimit,
   clientIpFromRequest,
   prefersJsonResponse,
   redirectTo,
@@ -12,7 +12,11 @@ export async function POST(request: Request): Promise<Response> {
   const ip = clientIpFromRequest(request);
   const wantJson = prefersJsonResponse(request);
 
-  if (!checkRateLimit(`signin:${ip}`, 30, 600_000)) {
+  const allowed = await checkAuthRateLimit("signin", ip, 30).catch(() => null);
+  if (allowed === null) {
+    return NextResponse.json({ error: "Sign-in is temporarily unavailable. Please try again later." }, { status: 503 });
+  }
+  if (!allowed) {
     const msg = "Too many sign-in attempts. Please wait a few minutes and try again.";
     return wantJson
       ? NextResponse.json({ error: msg }, { status: 429 })

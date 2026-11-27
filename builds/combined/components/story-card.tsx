@@ -176,7 +176,7 @@ export function StoryCard({
         )}
       </div>
 
-      <StoryAuditDrawer storyId={story.id} storyTitle={story.title} />
+      <StoryAuditDrawer storyId={story.id} storyTitle={story.title} returnTo={returnTo} />
 
       <StoryActionsBar
         storyId={story.id}

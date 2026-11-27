@@ -80,9 +80,11 @@ function triggerJitAuditFetch(storyId: string, force = false): void {
 export function StoryAuditDrawer({
   storyId,
   storyTitle,
+  returnTo = "/",
 }: {
   storyId: string;
   storyTitle: string;
+  returnTo?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [level, setLevel] = useState<ReadingLevel>("intuitive");
@@ -130,10 +132,8 @@ export function StoryAuditDrawer({
         aria-expanded={open}
         aria-label={`Explain "${storyTitle}" at 3 levels and audit score`}
       >
+        <span aria-hidden="true" className="disclosure-chevron" />
         <span>{open ? "Hide explanation & score audit" : "Explain at 3 levels & audit score"}</span>
-        <span aria-hidden="true" className="audit-chevron">
-          {open ? "−" : "+"}
-        </span>
       </button>
 
       {open && (
@@ -243,7 +243,7 @@ export function StoryAuditDrawer({
               </div>
 
               <div className="audit-drawer-links">
-                <Link href={`/stories/${storyId}`}>Full provenance &amp; judge trail →</Link>
+                <Link href={`/stories/${storyId}?returnTo=${encodeURIComponent(returnTo)}`}>Full provenance &amp; judge trail →</Link>
                 <Link
                   href={`/analysis?tab=live-inspector&title=${encodeURIComponent(audit.title)}&url=${encodeURIComponent(audit.url)}&summary=${encodeURIComponent(audit.summary.slice(0, 360))}`}
                 >

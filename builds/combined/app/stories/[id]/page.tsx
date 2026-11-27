@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { InteractivePaperFigure } from "@/components/interactive-paper-figure";
 import { StoryActionsBar } from "@/components/story-actions-bar";
 import { getCurrentUser } from "@/lib/auth";
+import { safeFeedReturn } from "@/lib/feed-return";
 import { SourceKindSchema } from "@/lib/schemas";
 import { getStoryById } from "@/lib/stories";
 
@@ -30,23 +31,26 @@ export async function generateMetadata({
 
 export default async function StoryProvenancePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ returnTo?: string }>;
 }) {
-  const { id } = await params;
+  const [{ id }, query] = await Promise.all([params, searchParams]);
+  const feedReturn = safeFeedReturn(query.returnTo);
   const user = await getCurrentUser().catch(() => null);
   const story = await getStoryById(id, user?.id);
 
   if (!story) notFound();
 
-  const returnTo = `/stories/${story.id}`;
+  const returnTo = `/stories/${story.id}?returnTo=${encodeURIComponent(feedReturn)}`;
   const leadKind = SourceKindSchema.catch("papers").parse(story.sources[0]?.kind);
 
   return (
     <>
       <p className="provenance-back-row">
-        <Link href="/" className="mono-kicker no-underline">
-          ← Return to Superintelligence Research Feed
+        <Link href={feedReturn} className="mono-kicker no-underline">
+          ← Return to {feedReturn === "/saved" ? "saved stories" : "research feed"}
         </Link>
       </p>
 
@@ -83,9 +87,9 @@ export default async function StoryProvenancePage({
 
         {story.authors && <p className="provenance-authors">Authors: {story.authors}</p>}
 
-        {story.aiScore !== null && story.aiReason && (
+        {story.aiScore !== null && (
           <div className="ai-assessment slot-mt-sm">
-            <span className="ai-score-chip">AI {story.aiScore}/100</span>
+            <span className="ai-score-chip">Assessment {story.aiScore}/10</span>
             <span className="ai-reason-text">{story.aiReason}</span>
           </div>
         )}
@@ -133,14 +137,31 @@ export default async function StoryProvenancePage({
         <h2 id="interactive-audit-heading" className="section-heading slot-mt-0">
           Interactive Manuscript Attribution &amp; Rigor Audit
         </h2>
-        <InteractivePaperFigure
-          initialTitle={story.title}
-          initialSummary={story.summary}
-          initialUrl={story.url}
-          initialKind={leadKind}
-          initialSources={story.sources.length || 1}
-          editable={true}
-        />
+        <details className="advanced-filters-disclosure smooth-disclosure">
+          <summary>Explore the interactive audit</summary>
+          <InteractivePaperFigure
+            initialTitle={story.title}
+            initialSummary={story.summary}
+            initialUrl={story.url}
+            initialKind={leadKind}
+            initialSources={story.sources.length || 1}
+            editable={true}
+          />
+        </details>
+      </section>
+
+      <section className="panel-card slot-mb-lg" aria-labelledby="decision-heading">
+        <span className="mono-kicker">SCORE AND EVIDENCE</span>
+        <h2 id="decision-heading" className="slot-subcard-title">How this story was assessed</h2>
+        <p>Significance and rigor are heuristic scores out of 100; the assessment is out of 10. These are not proof that a claim is true.</p>
+        <p><strong>Scope:</strong> {story.scopeReason || "No scope explanation recorded."}</p>
+        {story.topics.length > 0 && <ul className="stack-list">{story.topics.filter((topic) => topic.matched.length > 0).map((topic) => (
+          <li className="stack-row slot-text-sm" key={topic.id}><strong>{topic.label}</strong>: matched {topic.matched.join(", ")}{topic.via ? ` · via ${topic.via}` : ""}</li>
+        ))}</ul>}
+        {story.why.length > 0 && <><h3>Significance contributions</h3><ul className="stack-list">{story.why.map((factor, index) => (
+          <li className="stack-row slot-text-sm" key={`${factor.factor}-${index}`}><strong>{factor.points > 0 ? "+" : ""}{factor.points} · {factor.factor}</strong> — {factor.detail}</li>
+        ))}</ul></>}
+        <p>Composite ranking also combines assessment, significance, rigor, source count and any hype discount. A missing assessment uses a neutral default.</p>
       </section>
 
       {story.aiTrail.length > 0 && (
@@ -149,6 +170,7 @@ export default async function StoryProvenancePage({
           <h2 id="cascade-heading" className="slot-subcard-title">
             Recorded Assessment Trail
           </h2>
+          <p>Confidence is the assessor&apos;s estimate, not verified evidence or a calibrated probability. Human consensus is shown when recorded.</p>
           <ul className="stack-list">
             {story.aiTrail.map((step, idx) => (
               <li key={`${step.tier}-${idx}`} className="stack-row slot-text-sm">

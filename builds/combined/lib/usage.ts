@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { ensureSchema, S, sql } from "@/lib/db";
 import { clientIpFromRequest } from "@/lib/guards";
+import { reserveBudget, reserveUsage } from "@/lib/usage-reservations";
 import {
   ACTION_LABEL,
   AI_UNIT_COST,
@@ -47,32 +48,20 @@ export async function consumeQuota(opts: {
     };
   }
 
-  await ensureSchema();
-  const [row] = await sql<{ day: number; minute: number }[]>`
-    SELECT
-      count(*) FILTER (WHERE created_at > now() - interval '1 day')::int AS day,
-      count(*) FILTER (WHERE created_at > now() - interval '1 minute')::int AS minute
-    FROM ${S()}.usage_events
-    WHERE actor = ${opts.actor} AND action = ${opts.action} AND created_at > now() - interval '1 day'
-  `;
-  const day = row?.day ?? 0;
-  const minute = row?.minute ?? 0;
-
-  if (minute >= limit.perMinute) {
-    return { ok: false, usedToday: day, limit: limit.perDay, status: 429, message: "Slow down — too many requests this minute." };
-  }
-  if (day >= limit.perDay) {
+  const result = await reserveUsage({ actor: opts.actor, action: opts.action, dayLimit: limit.perDay, windowLimit: limit.perMinute, windowMs: 60_000 });
+  if (!result.allowed) {
+    const minuteLimited = result.window >= limit.perMinute;
     return {
       ok: false,
-      usedToday: day,
+      usedToday: result.day,
       limit: limit.perDay,
       status: 429,
-      message: `Daily limit reached for ${ACTION_LABEL[opts.action].toLowerCase()} (${limit.perDay}/day). It resets on a rolling 24-hour window.`,
+      message: minuteLimited
+        ? "Slow down — too many requests this minute."
+        : `Daily limit reached for ${ACTION_LABEL[opts.action].toLowerCase()} (${limit.perDay}/day). It resets on a rolling 24-hour window.`,
     };
   }
-
-  await sql`INSERT INTO ${S()}.usage_events (actor, action) VALUES (${opts.actor}, ${opts.action})`;
-  return { ok: true, usedToday: day + 1, limit: limit.perDay };
+  return { ok: true, usedToday: result.day, limit: limit.perDay };
 }
 
 export function quotaErrorResponse(q: Extract<QuotaResult, { ok: false }>): Response {
@@ -82,22 +71,17 @@ export function quotaErrorResponse(q: Extract<QuotaResult, { ok: false }>): Resp
   );
 }
 
-// Global AI spend ceiling: reserves units atomically-enough for a single cron writer.
 export async function reserveAiUnits(tier: 1 | 2): Promise<boolean> {
   const settings = readSpendSettings();
   if (!settings.aiEnabled) return false;
   if (tier === 2 && !settings.allowTier2Escalation) return false;
   const cost = tier === 2 ? AI_UNIT_COST.tier2 : AI_UNIT_COST.tier1;
+  return reserveBudget(cost, settings.dailyAiUnitCap);
+}
 
-  await ensureSchema();
-  const [row] = await sql<{ used: number }[]>`
-    SELECT COALESCE(sum(cost_units), 0)::int AS used
-    FROM ${S()}.usage_events
-    WHERE action = 'ai_judge' AND created_at > now() - interval '1 day'
-  `;
-  if ((row?.used ?? 0) + cost > settings.dailyAiUnitCap) return false;
-  await sql`INSERT INTO ${S()}.usage_events (actor, action, cost_units) VALUES ('system', 'ai_judge', ${cost})`;
-  return true;
+export async function checkAuthRateLimit(kind: "signin" | "signup", ip: string, maxHits: number): Promise<boolean> {
+  const result = await reserveUsage({ actor: `ip:${hashIp(ip)}`, action: `auth_${kind}`, dayLimit: Number.MAX_SAFE_INTEGER, windowLimit: maxHits, windowMs: 600_000 });
+  return result.allowed;
 }
 
 export async function getUsageSnapshot(actor: string): Promise<{

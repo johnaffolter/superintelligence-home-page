@@ -31,15 +31,6 @@ export default async function HomePage({
   const activeTopicLabel = activeTopicId ? TOPIC_LABEL_BY_ID.get(activeTopicId) : null;
   const returnTo = serializeFeedQuery(query);
 
-  const isFilteredView =
-    Boolean(activeTopicId) ||
-    Boolean(query.q) ||
-    Boolean(query.preset && query.preset !== "all-si") ||
-    query.page > 1 ||
-    query.window !== "all" ||
-    query.evidence !== "all" ||
-    query.curation !== "all";
-
   return (
     <>
       {/* Institutional Editorial Masthead */}
@@ -82,11 +73,11 @@ export default async function HomePage({
         </dl>
       </div>
 
-      {/* Anthropic-Style Interactive Multi-Level Field Guide & Sacred-Geometry Emblem Explorer */}
-      <InteractiveSiAtlas topicCounts={topicCounts} defaultCollapsed={isFilteredView} />
-
       {/* Clean Progressive-Disclosure Research Workspace Toolbar */}
       <FeedToolbar query={query} topicCounts={topicCounts} totalMatching={totalMatching} />
+
+      {/* Anthropic-Style Interactive Multi-Level Field Guide & Sacred-Geometry Emblem Explorer */}
+      <InteractiveSiAtlas topicCounts={topicCounts} defaultCollapsed />
 
       {/* Feed Corpus */}
       {stories.length === 0 ? (

@@ -150,7 +150,7 @@ export function StoryActionsBar({
           </form>
         </div>
 
-        <Link href={`/stories/${storyId}`} className="provenance-link">
+        <Link href={`/stories/${storyId}?returnTo=${encodeURIComponent(returnTo)}`} className="provenance-link">
           Full provenance →
         </Link>
       </div>

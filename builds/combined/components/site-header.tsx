@@ -7,7 +7,7 @@ import type { SessionUser } from "@/lib/auth";
 import type { ThemeMode } from "@/lib/theme";
 
 const BASE_NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Index" },
+  { href: "/", label: "Research" },
   { href: "/analysis", label: "Scoring Lab" },
   { href: "/brief", label: "Brief" },
   { href: "/sources", label: "Sources" },
