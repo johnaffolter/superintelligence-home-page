@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-// Defense-in-depth guards: per-IP sliding-window rate limiting, bot honeypot check,
-// reserved usernames, and safe relative redirect validation (REQ-C09, from Build B + Build A).
+// Defense-in-depth guards: bot honeypot check, reserved usernames,
+// and safe relative redirect validation (REQ-C09, from Build B + Build A).
 
 const RESERVED_USERNAMES = new Set([
   "admin",
@@ -22,27 +22,6 @@ export function isReservedUsername(username: string): boolean {
 
 export function isBotHoneypotTriggered(honeypotValue: unknown): boolean {
   return typeof honeypotValue === "string" && honeypotValue.trim().length > 0;
-}
-
-type BucketMap = Map<string, number[]>;
-
-declare global {
-  var __siCombinedRateBuckets: BucketMap | undefined;
-}
-
-export function checkRateLimit(key: string, maxHits = 25, windowMs = 600_000): boolean {
-  globalThis.__siCombinedRateBuckets ??= new Map<string, number[]>();
-  const buckets = globalThis.__siCombinedRateBuckets;
-  const now = Date.now();
-  const prev = (buckets.get(key) ?? []).filter((ts) => now - ts < windowMs);
-  if (prev.length >= maxHits) {
-    buckets.set(key, prev);
-    return false;
-  }
-  prev.push(now);
-  if (buckets.size > 4000) buckets.clear();
-  buckets.set(key, prev);
-  return true;
 }
 
 export function clientIpFromRequest(request: Request): string {

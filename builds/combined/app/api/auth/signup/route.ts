@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSessionForUser, registerUser } from "@/lib/auth";
 import {
-  checkRateLimit,
   clientIpFromRequest,
   isBotHoneypotTriggered,
   prefersJsonResponse,
@@ -9,7 +8,7 @@ import {
   safeReturnPath,
 } from "@/lib/guards";
 import { decideSignup, emailDomain } from "@/lib/limits";
-import { getSignupVelocity, hashIp, recordSignupEvent } from "@/lib/usage";
+import { checkAuthRateLimit, getSignupVelocity, hashIp, recordSignupEvent } from "@/lib/usage";
 
 // Sign-up guard order: burst limiter → honeypot → per-network & global velocity → validation → insert.
 // Every attempt is recorded against a salted IP hash so repeat-signup networks surface on /limits.
@@ -24,7 +23,9 @@ export async function POST(request: Request): Promise<Response> {
       ? NextResponse.json({ error: message, code }, { status })
       : redirectTo(request, `/signup?error=${encodeURIComponent(code)}&returnTo=${encodeURIComponent(returnTo)}`);
 
-  if (!checkRateLimit(`signup:${ip}`, 10, 600_000)) {
+  const allowed = await checkAuthRateLimit("signup", ip, 10).catch(() => null);
+  if (allowed === null) return fail("unavailable", "Sign-up is temporarily unavailable. Please try again later.", 503);
+  if (!allowed) {
     await recordSignupEvent({ ipHash, outcome: "throttled", reason: "Burst limiter" });
     return fail("rate", "Too many sign-up attempts. Please wait a few minutes and try again.", 429);
   }

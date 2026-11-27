@@ -35,7 +35,7 @@ export function dailyCap(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DAILY_CAP_DEFAULT;
 }
 
-const GatewayJudgmentSchema = z.object({
+export const GatewayJudgmentSchema = z.object({
   relevant: z.boolean(),
   score: z.number().min(1).max(10),
   confidence: z.number().min(0).max(1),
@@ -43,7 +43,7 @@ const GatewayJudgmentSchema = z.object({
   reason: z.string(),
 });
 
-const RUBRIC_SYSTEM_PROMPT = `You evaluate research papers, evaluations and policy developments for the Superintelligence Homepage.
+export const RUBRIC_SYSTEM_PROMPT = `You evaluate research papers, evaluations and policy developments for the Superintelligence Homepage.
 The feed covers ONLY meaningful developments on the path to AGI and superintelligence:
 capabilities & AGI progress, automating AI research, recursive self-improvement, alignment,
 interpretability, existential/catastrophic AI safety & risk, AGI forecasting & timelines,
